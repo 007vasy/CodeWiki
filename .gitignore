@@ -92,3 +92,4 @@ Thumbs.db
 !tests/test_updater_write_guard.py
 !tests/test_updater_orchestrator.py
 !tests/test_markdown_sanitizer.py
+!tests/test_parse_timeout.py

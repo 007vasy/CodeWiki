@@ -39,6 +39,12 @@ DEFAULT_IGNORE_PATTERNS = {
     ".turbo/",
     "bun.lock",
     "bun.lockb",
+    # Committed web build output (minified bundles, hashed assets): same
+    # class of generated noise as node_modules, and pathological input for
+    # the JS analyzer (observed: a single 5MB minified bundle stalling the
+    # whole sweep inside the per-file timeout). Matched against the
+    # directory name during the walk, like "node_modules" above.
+    "assets",
     # Java
     "*.class",
     "*.jar",

@@ -32,6 +32,16 @@ class TimeoutError(Exception):
     """Raised when file parsing exceeds timeout."""
 
 
+class FileParseTimeout(BaseException):
+    """Raised by :func:`timeout` when a file exceeds its parse budget.
+
+    Deliberately NOT an ``Exception``: language analyzers carry broad
+    ``except Exception`` guards around their inner loops, which swallowed
+    the old ``TimeoutError`` and let a pathological file (a committed
+    minified bundle) grind for hours inside the per-file timeout.
+    """
+
+
 @contextmanager
 def timeout(seconds):
     """Context manager for timeout on file parsing.
@@ -47,7 +57,7 @@ def timeout(seconds):
         return
 
     def signal_handler(signum, frame):
-        raise TimeoutError(f"File parsing exceeded {seconds}s timeout")
+        raise FileParseTimeout(f"File parsing exceeded {seconds}s timeout")
 
     old_handler = signal.signal(signal.SIGALRM, signal_handler)
     signal.alarm(seconds)
@@ -268,7 +278,7 @@ class CallGraphAnalyzer:
                 #         f"Unsupported language for call graph analysis: {language} for file {file_path}"
                 #     )
 
-        except TimeoutError as e:
+        except (FileParseTimeout, TimeoutError) as e:
             logger.warning(f"⏱️  Timeout analyzing {file_path}: {e!s}")
         except Exception as e:  # noqa: BLE001 — per-file analysis is best-effort
             logger.debug(f"Error analyzing {file_path}: {e!s}")
