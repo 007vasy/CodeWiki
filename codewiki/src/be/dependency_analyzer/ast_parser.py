@@ -124,6 +124,14 @@ class DependencyParser:
                     self.modules.add(module_path)
 
         processed_relationships = 0
+        # Name -> component id index for the unresolved-callee fallback below.
+        # First match wins, exactly like the linear scan it replaces; built
+        # once because the scan is quadratic on large repositories (100k+
+        # components x hundreds of thousands of unresolved relationships).
+        name_index: dict[str, str] = {}
+        for comp_id, comp_node in self.components.items():
+            name_index.setdefault(comp_node.name, comp_id)
+
         for rel_dict in relationships:
             caller_id = rel_dict.get("caller", "")
             callee_id = rel_dict.get("callee", "")
@@ -132,10 +140,7 @@ class DependencyParser:
 
             callee_component_id = component_id_mapping.get(callee_id)
             if not callee_component_id:
-                for comp_id, comp_node in self.components.items():
-                    if comp_node.name == callee_id:
-                        callee_component_id = comp_id
-                        break
+                callee_component_id = name_index.get(callee_id)
 
             if (
                 caller_component_id
