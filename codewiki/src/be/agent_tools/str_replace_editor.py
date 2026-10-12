@@ -25,6 +25,69 @@ from .deps import CodeWikiDeps
 logger = logging.getLogger(__name__)
 
 
+_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+# A pseudo tool-narration tag the model invented (<OVERVIEW_READ>, <FILE_READ>,
+# ...): an ALL_CAPS snake-case tag alone on a leading line, never a real
+# markdown construct.
+_PSEUDO_TAG_RE = re.compile(r"^\s*<[A-Z][A-Z0-9_]{2,}>\s*\n")
+# Narration openers the model writes instead of the page itself.
+_NARRATION_OPENERS = (
+    "i'll",
+    "i will",
+    "i'm going",
+    "i am going",
+    "let me",
+    "i need to",
+    "i have",
+    "first,",
+    "now,",
+    "okay,",
+    "sure,",
+    "certainly",
+)
+
+
+def sanitize_llm_markdown(text: str) -> str:
+    """Strip reasoning-model leakage from a generated markdown page.
+
+    Reasoning-style models (and small models behind OpenAI-compatible
+    endpoints) sometimes prepend their chain of thought to the page they
+    were asked to write: closed ``<think>`` blocks, an unterminated
+    reasoning prefix ending in a stray ``</think>``, invented tool tags
+    like ``<OVERVIEW_READ>``, or a narration line before the first real
+    heading. All of that is noise in a committed documentation page.
+
+    Sanitizing on the ``create`` path only: edit commands must pass
+    through untouched.
+    """
+    # 1. Closed think blocks.
+    out = _THINK_BLOCK_RE.sub("", text)
+    # 2. Unterminated reasoning prefix ending in a stray </think>: keep the
+    #    tail (the reasoning before the marker is never the page).
+    if "</think>" in out:
+        head, _, tail = out.partition("</think>")
+        if "<think>" not in head:
+            out = tail
+    # 3. Invented leading tool-narration tags.
+    while True:
+        stripped = _PSEUDO_TAG_RE.sub("", out, count=1)
+        if stripped == out:
+            break
+        out = stripped
+    # 4. Narration before the first markdown heading. Only when the preamble
+    #    looks like chatter (an opener, or contains tag soup), so real
+    #    front-matter-style content survives.
+    m = re.search(r"^#{1,3}\s+\S", out, flags=re.MULTILINE)
+    if m and m.start() > 0:
+        preamble = out[: m.start()].strip()
+        lowered = " ".join(preamble.split()).lower()
+        if preamble and (
+            lowered.startswith(_NARRATION_OPENERS) or "<" in preamble
+        ):
+            out = out[m.start() :]
+    return out
+
+
 def _coerce_json_string(value):
     """Coerce a JSON encoded string to its parsed Python value before pydantic
     strict validation runs. No op on already typed values.
@@ -525,6 +588,8 @@ class EditTool:
                 f"The parent directory {self._get_display_path(path.parent)} does not exist. Please create it first."
             )
             return
+        if path.suffix == ".md":
+            file_text = sanitize_llm_markdown(file_text)
         self.write_file(path, file_text)
         self._file_history[path].append(file_text)
         self.logs.append(f"File created successfully at: {self._get_display_path(path)}")
