@@ -42,6 +42,7 @@ dependencies = [
     "tree-sitter-ruby>=0.23.1",
     "tree-sitter-scala>=0.23.2,<0.24.0",
     "tree-sitter-rust>=0.23.2,<0.24.0",
+    "tree-sitter-go>=0.23.0,<0.24.0",
     "openai>=1.107.0",
     "litellm>=1.77.0",
     "pydantic>=2.11.7",
@@ -61,7 +62,10 @@ dependencies = [
     "python-multipart>=0.0.20",
     "colorama>=0.4.6",
     "logfire>=4.1.0",
-    "coding-agent-wrapper @ git+https://github.com/anhnh2002/caw@fix/codex-exec-robustness",
+    # cre-demo fork: the coding-agent-wrapper (caw) dependency is intentionally
+    # removed. It was pinned to a mutable branch of a personal fork and is only
+    # needed for the claude-code/codex subscription providers, which this fork
+    # does not support. The openai-compatible (Fireworks) path never imports it.
     "mcp>=1.0.0"
 ]
 

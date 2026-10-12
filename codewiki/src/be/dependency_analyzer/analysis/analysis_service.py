@@ -379,6 +379,7 @@ class AnalysisService:
             "kotlin",
             "scala",
             "rust",
+            "go",
         ]
 
     def _cleanup_repository(self, temp_dir: str):

@@ -46,6 +46,7 @@ tests/*
 !tests/test_leaf_selection.py
 !tests/test_branding.py
 !tests/test_artifact_analyzer.py
+!tests/test_go_analyzer.py
 !tests/test_scala_analyzer.py
 !tests/test_agent_limits.py
 

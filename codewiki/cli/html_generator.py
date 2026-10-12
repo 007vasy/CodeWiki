@@ -141,10 +141,13 @@ class HTMLGenerator:
             except Exception:
                 docs_base_path = "."
 
-        # Prepare JSON data for embedding
-        config_json = json.dumps(config, indent=2)
-        module_tree_json = json.dumps(module_tree, indent=2)
-        metadata_json = json.dumps(metadata, indent=2) if metadata else "null"
+        # Prepare JSON data for embedding. Escape "</" so embedded strings
+        # (module names come from LLM output) cannot break out of <script>.
+        config_json = json.dumps(config, indent=2).replace("</", "<\\/")
+        module_tree_json = json.dumps(module_tree, indent=2).replace("</", "<\\/")
+        metadata_json = (
+            json.dumps(metadata, indent=2).replace("</", "<\\/") if metadata else "null"
+        )
 
         # Docs written in another language: show their translated page titles
         # in the navigation (filenames stay equal to the module names)
