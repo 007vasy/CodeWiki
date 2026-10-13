@@ -213,8 +213,17 @@ class DependencyParser:
         if dir_name:
             os.makedirs(dir_name, exist_ok=True)
 
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
+        if output_path.endswith(".gz"):
+            # The graph embeds every component's source; large repos exceed
+            # host file-size limits (GitHub: 100MB) as plain JSON. Gzip keeps
+            # the incremental-update graph committable.
+            import gzip
+
+            with gzip.open(output_path, "wt", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+        else:
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
 
         logger.debug(f"Saved {len(self.components)} components to {output_path}")
         return result

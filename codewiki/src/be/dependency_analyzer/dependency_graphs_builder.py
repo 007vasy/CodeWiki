@@ -38,7 +38,7 @@ class DependencyGraphBuilder:
         repo_name = os.path.basename(os.path.normpath(self.config.repo_path))
         sanitized_repo_name = "".join(c if c.isalnum() else "_" for c in repo_name)
         dependency_graph_path = os.path.join(
-            self.config.dependency_graph_dir, f"{sanitized_repo_name}_dependency_graph.json"
+            self.config.dependency_graph_dir, f"{sanitized_repo_name}_dependency_graph.json.gz"
         )
         # Get custom include/exclude patterns from config
         include_patterns = self.config.include_patterns if self.config.include_patterns else None
