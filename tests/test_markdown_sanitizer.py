@@ -66,6 +66,25 @@ def _editor(tmp_path: Path) -> EditTool:
     return EditTool({"file_history": "{}"}, absolute_docs_path=str(docs_dir))
 
 
+def test_narration_detector_matches_chatter_not_documents():
+    from codewiki.src.be.documentation_generator import _looks_like_narration
+
+    # The observed failure mode: narration instead of the overview.
+    assert _looks_like_narration(
+        "I'll read the module documentation files referenced by the "
+        "`docs_path` fields before writing the overview...."
+    )
+    assert _looks_like_narration("Let me look at the child pages first.")
+    # Real content, however small, is not narration.
+    assert not _looks_like_narration("overview")
+    assert not _looks_like_narration("[store](store.md)")
+    assert not _looks_like_narration("# Overview\n\nThe repository provides...")
+    # Narration-shaped openers in a long structured document are fine.
+    assert not _looks_like_narration(
+        "I will describe the system.\n\n- point one\n- point two\n\n```go\nx()\n```"
+    )
+
+
 def test_create_sanitizes_markdown_but_not_other_files(tmp_path: Path):
     editor = _editor(tmp_path)
     editor.create_file(

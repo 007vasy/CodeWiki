@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import traceback
 from copy import deepcopy
 from typing import Any
@@ -43,6 +44,25 @@ from codewiki.src.utils import file_manager
 
 # Configure logging and monitoring
 logger = logging.getLogger(__name__)
+
+# Narration chatter a reasoning-style model sometimes emits instead of the
+# requested document ("I'll read the child pages first...", with no tools
+# available to actually do it). Short, opener-led, and markdown-structure-free.
+_NARRATION_OPENER_RE = re.compile(
+    r"^(i'll|i will|i'm going to|i am going to|let me|i need to|i have to)\b",
+    re.IGNORECASE,
+)
+_MARKDOWN_STRUCTURE_RE = re.compile(r"^#{1,6}\s|^\||^[-*]\s|^```", re.MULTILINE)
+
+
+def _looks_like_narration(text: str) -> bool:
+    t = text.strip()
+    return (
+        bool(t)
+        and len(t) < 400
+        and bool(_NARRATION_OPENER_RE.match(t))
+        and not _MARKDOWN_STRUCTURE_RE.search(t)
+    )
 
 
 class IncompleteDocumentationError(Exception):
@@ -378,6 +398,15 @@ class DocumentationGenerator:
         logger.debug(f"Overview prompt for {module_name}: {len(prompt)} chars")
 
         try:
+            # Reasoning-style models sometimes narrate ("I'll read the child
+            # pages first...") instead of writing the overview; the completion
+            # path has no tools, so that narration is all there is. Retry once
+            # with an explicit no-narration instruction before giving up.
+            no_narration = (
+                "\n\nIMPORTANT: Respond with the final markdown document only, "
+                "wrapped in <OVERVIEW></OVERVIEW> tags. No narration, no preamble, "
+                "no description of what you are about to do."
+            )
             parent_docs = self.backend.complete(
                 prompt,
                 system_prompt=format_overview_system_prompt(self.config.get_prompt_addition()),
@@ -400,6 +429,32 @@ class DocumentationGenerator:
                     f"using raw response as markdown."
                 )
                 parent_content = parent_docs.strip()
+
+            from codewiki.src.be.agent_tools.str_replace_editor import sanitize_llm_markdown
+
+            parent_content = sanitize_llm_markdown(parent_content)
+            if _looks_like_narration(parent_content):
+                logger.warning(
+                    "Overview response for %s looks like narration chatter, "
+                    "not a document; retrying once with explicit instructions.",
+                    module_name,
+                )
+                retry_docs = self.backend.complete(
+                    prompt + no_narration,
+                    system_prompt=format_overview_system_prompt(self.config.get_prompt_addition()),
+                )
+                if retry_docs:
+                    if "<OVERVIEW>" in retry_docs and "</OVERVIEW>" in retry_docs:
+                        parent_content = retry_docs.split("<OVERVIEW>")[1].split("</OVERVIEW>")[0].strip()
+                    else:
+                        parent_content = retry_docs.strip()
+                    parent_content = sanitize_llm_markdown(parent_content)
+
+            if _looks_like_narration(parent_content) or not parent_content.strip():
+                raise RuntimeError(
+                    f"Overview for {module_name} is narration chatter or empty "
+                    f"even after retry"
+                )
             os.makedirs(os.path.dirname(parent_docs_path), exist_ok=True)
             file_manager.save_text(parent_content, parent_docs_path)
 
